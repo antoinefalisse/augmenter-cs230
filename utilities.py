@@ -395,6 +395,69 @@ def rotateArray(data, axis, value, inDegrees=True):
         
     return data_out
 
+# %% Rotate data (sphere).
+# Based on first approach from:
+# http://paulbourke.net/geometry/randomvector/
+def rotateArraySphere1(data, theta_x, theta_y, theta_z, inDegrees=False):    
+    assert np.mod(data.shape[1],3) == 0, 'wrong dimension rotateArray'
+    
+    r1 = R.from_euler('x', theta_x, degrees=False)
+    r2 = R.from_euler('y', theta_z, degrees=False)
+    r3 = R.from_euler('z', theta_z, degrees=False)
+    
+    data_out = np.zeros((data.shape[0], data.shape[1]))
+    for i in range(int(data.shape[1]/3)):
+        c = data[:,i*3:(i+1)*3]        
+        unit_vec_r1 = r1.apply(c)
+        unit_vec_r2 = r2.apply(unit_vec_r1)
+        data_out[:,i*3:(i+1)*3] = r3.apply(unit_vec_r2)
+        
+    return data_out
+
+# %% Rotate data (sphere).
+# Based on second approach from:
+# http://paulbourke.net/geometry/randomvector/
+def rotateArraySphere2(data, theta_x, theta_z, inDegrees=False):    
+    assert np.mod(data.shape[1],3) == 0, 'wrong dimension rotateArray'
+    
+    r1 = R.from_euler('x', theta_x, degrees=inDegrees)
+    r2 = R.from_euler('z', theta_z, degrees=inDegrees)
+    
+    data_out = np.zeros((data.shape[0], data.shape[1]))
+    for i in range(int(data.shape[1]/3)):
+        c = data[:,i*3:(i+1)*3]
+        unit_vec_r1 = r1.apply(c)
+        data_out[:,i*3:(i+1)*3] = r2.apply(unit_vec_r1)
+        
+    return data_out
+
+# %% Rotate data (sphere).
+# Based on third approach from:
+# http://paulbourke.net/geometry/randomvector/
+def get_rotation_matrix(vec2, vec1=np.array([1, 0, 0])):
+    """get rotation matrix between two vectors using scipy"""
+    vec1 = np.reshape(vec1, (1, -1))
+    vec2 = np.reshape(vec2, (1, -1))
+    r = R.align_vectors(vec2, vec1)
+    return r[0]
+
+def rotateArraySphere3(data, ref_vec, theta_x, theta_z, inDegrees=False):    
+    assert np.mod(data.shape[1],3) == 0, 'wrong dimension rotateArray'
+    
+    r1 = R.from_euler('x', theta_x, degrees=inDegrees)
+    r2 = R.from_euler('z', theta_z, degrees=inDegrees)
+    
+    data_out = np.zeros((data.shape[0], data.shape[1]))
+    for i in range(int(data.shape[1]/3)):
+        c = data[:,i*3:(i+1)*3]        
+        for j in range(data.shape[0]):        
+            r_align = get_rotation_matrix(vec1=data[0, 0:3], vec2=ref_vec)
+            unit_vec_align = r_align.apply(c[j, :])            
+            unit_vec_r1 = r1.apply(unit_vec_align)
+            data_out[j,i*3:(i+1)*3] = r2.apply(unit_vec_r1)
+        
+    return data_out
+
 # %% TRC format to numpy format.
 def TRC2numpy(pathFile, markers):
     

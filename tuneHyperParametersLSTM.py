@@ -217,6 +217,7 @@ if not os.path.exists(pathMean) and not os.path.exists(pathSTD):
         for rotation in rotations:            
             c_features_xyz_rot = rotateArray(
                 c_features[:,:nFeature_markers], 'y', rotation)
+            # Add back height and weight.
             c_features_rot = np.concatenate(
                 (c_features_xyz_rot, c_features[:,nFeature_markers:]), axis=1)        
             # Add noise to the training data.
@@ -230,14 +231,14 @@ if not os.path.exists(pathMean) and not os.path.exists(pathSTD):
                     noise[:,:nFeature_markers] = np.random.normal(
                         0, noise_magnitude, 
                         (desired_nFrames, nFeature_markers))
-                    c_features += noise                
+                    c_features_rot += noise                
                 else:
                     raise ValueError("Only per_timestep noise type supported")                
-            if not c_features.shape[0] == 30:
+            if not c_features_rot.shape[0] == 30:
                 raise ValueError("Dimension features and responses are wrong")                
             # Compute mean and std iteratively.    
-            for c_s in range(c_features.shape[0]):
-                existingAggregate = update(existingAggregate, c_features[c_s, :])
+            for c_s in range(c_features_rot.shape[0]):
+                existingAggregate = update(existingAggregate, c_features_rot[c_s, :])
     # Compute final mean and standard deviation.
     (features_mean, features_variance, _) = finalize(existingAggregate)    
     features_std = np.sqrt(features_variance)
