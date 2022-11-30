@@ -227,7 +227,7 @@ if not os.path.exists(pathMean) and not os.path.exists(pathSTD):
                 # rotation = rotations[:, r].flatten()
                 theta_x = rotations[:, r].flatten()[0,]
                 theta_z = rotations[:, r].flatten()[1,]                
-                c_features_xyz_rot = rotateArraySphere3(
+                c_features_xyz_rot, _ = rotateArraySphere3(
                     c_features[:,:nFeature_markers], ref_vec, theta_x, theta_z)
             # Add back height and weight.
             c_features_rot = np.concatenate(
