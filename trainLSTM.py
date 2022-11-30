@@ -211,7 +211,8 @@ if not os.path.exists(pathMean) and not os.path.exists(pathSTD):
     existingAggregate = (0,0,0)    
     from utilities import update
     from utilities import finalize
-    for count, idx in enumerate(partition['train']): 
+    for count, idx in enumerate(partition['train']):
+        print("{}/{}".format(count, partition['train'].shape[0]))
         c_features_all = np.load(os.path.join(
             pathData_all, "feature_{}.npy".format(idx)))
         # Select features.

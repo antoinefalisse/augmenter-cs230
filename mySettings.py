@@ -80,7 +80,26 @@ def get_lstm_settings(a):
              "noise_type": "per_timestep",
              'nRotations': 10,
              'bidirectional': False,
-             'rotation_type': 'sphereRotation'},}
+             'rotation_type': 'sphereRotation'},
+
+         "3":                
+            {'augmenter_type': 'lowerExtremity',
+             "poseDetector": 'OpenPose',
+             "idxDatasets": [idx for idx in range(0,1)],
+             "scaleFactors": [0.9, 0.95, 1., 1.05, 1.1],
+             "nHUnits": 96,
+             "nHLayers": 2,
+             "nEpochs": 50,
+             "batchSize": 64,
+             "idxFold": 0,
+             'learning_r': 5e-05,
+             "mean_subtraction": True,
+             "std_normalization": True,
+             "noise_magnitude": 0.018,
+             "noise_type": "per_timestep",
+             'nRotations': 1,
+             'bidirectional': False,
+             'rotation_type': 'circleRotation'}}
         
     return settings[str(a)]
 

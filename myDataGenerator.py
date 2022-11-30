@@ -42,7 +42,7 @@ class lstmDataGenerator(keras.utils.Sequence):
         
         if rotation_type == 'circleRotation':
             self.nRotations = len(rotations)
-        elif rotation_type == 'circleRotation':
+        elif rotation_type == 'sphereRotation':
             self.nRotations = rotations.shape[1]
         else:
             raise ValueError('Unknown rotation type')
@@ -95,9 +95,7 @@ class lstmDataGenerator(keras.utils.Sequence):
         y = np.empty((self.batch_size, *self.dim_r))       
         
         # Pick a rotation between
-        if idx_rot == 0:
-            rotation = 0
-        else:
+        if idx_rot != 0:
             if self.rotation_type == 'circleRotation':
                 rotations_all = self.rotations + [360.]
                 step = 360/self.nRotations/4
@@ -111,15 +109,18 @@ class lstmDataGenerator(keras.utils.Sequence):
             # Store sample
             X_temp = np.load(os.path.join(self.pathData, 'feature_{}.npy'.format(ID)))[:, self.idx_features]
             # Apply rotation
-            if self.rotation_type == 'circleRotation':
-                X_temp_xyz_rot = rotateArray(X_temp[:,:-2], 'y', rotation)
-            elif self.rotation_type == 'sphereRotation':
-                theta_x = rotation.flatten()[0,]
-                theta_z = rotation.flatten()[1,]                
-                X_temp_xyz_rot = rotateArraySphere3(
-                    X_temp[:,:-2], self.ref_vec, theta_x, theta_z)                
-            X_temp_rot = np.concatenate((X_temp_xyz_rot, X_temp[:,-2:]), axis=1)
-            X[i,] = X_temp_rot
+            if idx_rot == 0:
+                X[i,] = X_temp
+            else:
+                if self.rotation_type == 'circleRotation':
+                    X_temp_xyz_rot = rotateArray(X_temp[:,:-2], 'y', rotation)
+                elif self.rotation_type == 'sphereRotation':
+                    theta_x = rotation.flatten()[0,]
+                    theta_z = rotation.flatten()[1,]                
+                    X_temp_xyz_rot = rotateArraySphere3(
+                        X_temp[:,:-2], self.ref_vec, theta_x, theta_z)                
+                X_temp_rot = np.concatenate((X_temp_xyz_rot, X_temp[:,-2:]), axis=1)
+                X[i,] = X_temp_rot
             # Add noise
             if self.noise_bool:                
                 np.random.seed(ID)     
@@ -139,13 +140,15 @@ class lstmDataGenerator(keras.utils.Sequence):
             # Store class
             y_temp = np.load(os.path.join(self.pathData, 'responses_{}.npy'.format(ID)))[:, self.idx_responses]
             # Apply rotation
-            if self.rotation_type == 'circleRotation':
-                y_temp_xyz_rot = rotateArray(y_temp, 'y', rotation)
-            elif self.rotation_type == 'sphereRotation':
-                theta_x = rotation.flatten()[0,]
-                theta_z = rotation.flatten()[1,]
-                y_temp_xyz_rot = rotateArraySphere3(y_temp, self.ref_vec, theta_x, theta_z)                
-                
-            y[i,] = y_temp_xyz_rot
+            if idx_rot == 0:
+                y[i,] = y_temp
+            else:
+                if self.rotation_type == 'circleRotation':
+                    y_temp_xyz_rot = rotateArray(y_temp, 'y', rotation)
+                elif self.rotation_type == 'sphereRotation':
+                    theta_x = rotation.flatten()[0,]
+                    theta_z = rotation.flatten()[1,]
+                    y_temp_xyz_rot = rotateArraySphere3(y_temp, self.ref_vec, theta_x, theta_z)
+                y[i,] = y_temp_xyz_rot                
 
         return X, y
