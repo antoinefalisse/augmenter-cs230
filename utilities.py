@@ -441,19 +441,16 @@ def get_rotation_matrix(vec2, vec1=np.array([1, 0, 0])):
     r = R.align_vectors(vec2, vec1)
     return r[0]
 
-def rotateArraySphere3(data, ref_vec, theta_x, theta_z, r_align_in=None,
+def rotateArraySphere3(data, ref_vec, theta_x, theta_z, unit_vec=np.array([0,0,0]),
                        inDegrees=False):    
     assert np.mod(data.shape[1],3) == 0, 'wrong dimension rotateArray'
     
     r1 = R.from_euler('x', theta_x, degrees=inDegrees)
     r2 = R.from_euler('z', theta_z, degrees=inDegrees)
     
-    if r_align_in:
-        # May want to use an pre-computed alignment.
-        r_align = r_align_in
-    else:
-        # Always use the same reference for alignment.
-        r_align = get_rotation_matrix(vec1=data[0, 0:3], vec2=ref_vec)
+    if not np.any(unit_vec):
+        unit_vec = data[0, 0:3]
+    r_align = get_rotation_matrix(vec1=unit_vec, vec2=ref_vec)
     
     data_out = np.zeros((data.shape[0], data.shape[1]))
     for i in range(int(data.shape[1]/3)):
@@ -463,7 +460,7 @@ def rotateArraySphere3(data, ref_vec, theta_x, theta_z, r_align_in=None,
             unit_vec_r1 = r1.apply(unit_vec_align)
             data_out[j,i*3:(i+1)*3] = r2.apply(unit_vec_r1)
         
-    return data_out, r_align
+    return data_out, unit_vec
 
 # %% TRC format to numpy format.
 def TRC2numpy(pathFile, markers):

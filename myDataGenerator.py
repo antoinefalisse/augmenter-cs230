@@ -116,7 +116,7 @@ class lstmDataGenerator(keras.utils.Sequence):
                 elif self.rotation_type == 'sphereRotation':
                     theta_x = rotation.flatten()[0,]
                     theta_z = rotation.flatten()[1,]                
-                    X_temp_xyz_rot, r_align = rotateArraySphere3(
+                    X_temp_xyz_rot, unit_vec = rotateArraySphere3(
                         X_temp[:,:-2], self.ref_vec, theta_x, theta_z)                
                 X_temp_rot = np.concatenate((X_temp_xyz_rot, X_temp[:,-2:]), axis=1)
                 X[i,] = X_temp_rot
@@ -149,7 +149,7 @@ class lstmDataGenerator(keras.utils.Sequence):
                     theta_z = rotation.flatten()[1,]
                     # Use alignment used for features to make sure the same
                     # rotation is applied.
-                    y_temp_xyz_rot, _ = rotateArraySphere3(y_temp, self.ref_vec, theta_x, theta_z, r_align_in=r_align)
+                    y_temp_xyz_rot, _ = rotateArraySphere3(y_temp, self.ref_vec, theta_x, theta_z, unit_vec=unit_vec)
                 y[i,] = y_temp_xyz_rot                
 
         return X, y
