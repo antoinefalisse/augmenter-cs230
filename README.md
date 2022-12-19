@@ -1,5 +1,10 @@
 # CS-230: Human body marker augmentation
 
+<p align="center">
+  <img src="Images/MarkerAugmentation.png">
+</p>
+
+
 ### Install requirements (see docker below too)
 1. Install [Anaconda](https://www.anaconda.com/)
 2. Clone the repository to your machine.
