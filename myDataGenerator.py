@@ -1,7 +1,7 @@
 import numpy as np
 from tensorflow import keras
 import os
-from utilities import rotateArray
+from utilities import rotateArray, rotateArraySphere3
 
 # Inspired from https://stanford.edu/~shervine/blog/keras-how-to-generate-data-on-the-fly
 class lstmDataGenerator(keras.utils.Sequence):
@@ -10,7 +10,9 @@ class lstmDataGenerator(keras.utils.Sequence):
                  dim_r=(30,87), shuffle=True, noise_bool=False, noise_type='',
                  noise_magnitude=0, mean_subtraction=False, 
                  std_normalization=False, features_mean=0, features_std=0,                 
-                 idx_features=[], idx_responses=[], rotations=[0]):
+                 idx_features=[], idx_responses=[], 
+                 rotation_type='circleRotation', rotations=[0], 
+                 ref_vec=np.array([0,0,1]) ):
         'Initialization'
         self.dim_f = dim_f
         self.dim_r = dim_r
@@ -34,14 +36,24 @@ class lstmDataGenerator(keras.utils.Sequence):
         self.idx_features = idx_features
         self.idx_responses = idx_responses
         
+        self.rotation_type = rotation_type
         self.rotations = rotations
+        self.ref_vec = ref_vec
+        
+        if rotation_type == 'circleRotation':
+            self.nRotations = len(rotations)
+        elif rotation_type == 'sphereRotation':
+            self.nRotations = rotations.shape[1]
+        else:
+            raise ValueError('Unknown rotation type')
+            
 
     def __len__(self):
         'Denotes the number of batches per epoch'        
         # We multiply the number of samples by the number of rotations we want
         # to apply to each sample, and then divide by the batch size.
         return int(np.floor(
-            (len(self.list_IDs)*(len(self.rotations)+1)) / self.batch_size))
+            (len(self.list_IDs)*(self.nRotations+1)) / self.batch_size))
 
     def __getitem__(self, index):
         'Generate one batch of data'
@@ -54,7 +66,7 @@ class lstmDataGenerator(keras.utils.Sequence):
         #       ...
         #       index => floor(index/n_rot)
         #           idx0=0, idx1=0, idx2=0, idx3=0, idx4=1, idx5=1, idx6=1, ...
-        index_rot = int(np.floor(index/(len(self.rotations)+1)))
+        index_rot = int(np.floor(index/(self.nRotations+1)))
         indexes = self.indexes[index_rot*self.batch_size:(index_rot+1)*self.batch_size]
 
         # Find list of IDs
@@ -63,7 +75,7 @@ class lstmDataGenerator(keras.utils.Sequence):
         #       ...
         #       index => mod(index, n_rot)
         #           idx0=0, idx1=1, idx2=2, idx3=3, idx4=0, idx5=1, idx6=2, ...
-        idx_rot = np.mod(index, (len(self.rotations)+1))
+        idx_rot = np.mod(index, (self.nRotations+1))
 
         # Generate data
         X, y = self.__data_generation(list_IDs_temp, idx_rot)
@@ -82,22 +94,32 @@ class lstmDataGenerator(keras.utils.Sequence):
         X = np.empty((self.batch_size, *self.dim_f))
         y = np.empty((self.batch_size, *self.dim_r))       
         
-        # Pick a rotation between 
-        if idx_rot == 0:
-            rotation = 0
-        else:
-            rotations_all = self.rotations + [360.]
-            step = 360/len(self.rotations)/4
-            rotation = np.random.choice(np.arange(rotations_all[idx_rot-1], rotations_all[idx_rot], step), size=1)
+        # Pick a rotation between
+        if idx_rot != 0:
+            if self.rotation_type == 'circleRotation':
+                rotations_all = self.rotations + [360.]
+                step = 360/self.nRotations/4
+                rotation = np.random.choice(np.arange(rotations_all[idx_rot-1], rotations_all[idx_rot], step), size=1)
+            elif self.rotation_type == 'sphereRotation':
+                rotation = self.rotations[:, idx_rot-1]                
         
         # Generate data
         for i, ID in enumerate(list_IDs_temp):
             # Store sample
             X_temp = np.load(os.path.join(self.pathData, 'feature_{}.npy'.format(ID)))[:, self.idx_features]
             # Apply rotation
-            X_temp_xyz_rot = rotateArray(X_temp[:,:-2], 'y', rotation)
-            X_temp_rot = np.concatenate((X_temp_xyz_rot, X_temp[:,-2:]), axis=1)
-            X[i,] = X_temp_rot
+            if idx_rot == 0:
+                X[i,] = X_temp
+            else:
+                if self.rotation_type == 'circleRotation':
+                    X_temp_xyz_rot = rotateArray(X_temp[:,:-2], 'y', rotation)
+                elif self.rotation_type == 'sphereRotation':
+                    theta_x = rotation.flatten()[0,]
+                    theta_z = rotation.flatten()[1,]                
+                    X_temp_xyz_rot, unit_vec = rotateArraySphere3(
+                        X_temp[:,:-2], self.ref_vec, theta_x, theta_z)                
+                X_temp_rot = np.concatenate((X_temp_xyz_rot, X_temp[:,-2:]), axis=1)
+                X[i,] = X_temp_rot
             # Add noise
             if self.noise_bool:                
                 np.random.seed(ID)     
@@ -117,7 +139,17 @@ class lstmDataGenerator(keras.utils.Sequence):
             # Store class
             y_temp = np.load(os.path.join(self.pathData, 'responses_{}.npy'.format(ID)))[:, self.idx_responses]
             # Apply rotation
-            y_temp_xyz_rot = rotateArray(y_temp, 'y', rotation)
-            y[i,] = y_temp_xyz_rot
+            if idx_rot == 0:
+                y[i,] = y_temp
+            else:
+                if self.rotation_type == 'circleRotation':
+                    y_temp_xyz_rot = rotateArray(y_temp, 'y', rotation)
+                elif self.rotation_type == 'sphereRotation':
+                    theta_x = rotation.flatten()[0,]
+                    theta_z = rotation.flatten()[1,]
+                    # Use alignment used for features to make sure the same
+                    # rotation is applied.
+                    y_temp_xyz_rot, _ = rotateArraySphere3(y_temp, self.ref_vec, theta_x, theta_z, unit_vec=unit_vec)
+                y[i,] = y_temp_xyz_rot                
 
         return X, y

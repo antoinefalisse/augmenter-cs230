@@ -9,7 +9,7 @@ from mySettings import get_lstm_tuner_settings
 from myModelsHyperParameters import get_unidirectional_lstm_model
 from myModelsHyperParameters import get_bidirectional_lstm_model
 from myDataGenerator import lstmDataGenerator
-from utilities import getAllMarkers, rotateArray
+from utilities import getAllMarkers, rotateArray, rotateArraySphere3
 
 import kerastuner
 from kerastuner.tuners import RandomSearch
@@ -77,7 +77,18 @@ layer_h = settings["layer_h"]
 nRotations = 1
 if "nRotations" in settings:
     nRotations = settings["nRotations"]
-rotations = [i*360/nRotations for i in range(0,nRotations)]
+    
+rotation_type = 'circleRotation'
+ref_vec = np.array([0,0,1])
+if "rotation_type" in settings:
+    rotation_type = settings["rotation_type"]
+if rotation_type == 'circleRotation':
+    rotations = [i*360/nRotations for i in range(0,nRotations)]
+elif rotation_type == 'sphereRotation':
+    rotations = np.zeros((2, nRotations))
+    for i in range(nRotations):
+        rotations[0,i] = np.arccos(2*np.random.uniform()-1) # theta_x
+        rotations[1,i] = 2*np.pi*np.random.uniform() # theta_z
 
 # Bidirectional LSTM.
 # https://keras.io/api/layers/recurrent_layers/bidirectional/
@@ -197,10 +208,10 @@ else:
     partition = np.load(pathPartition, allow_pickle=True).item()
         
 # %% Data processing: add noise and compute mean and standard deviation.
-pathMean = os.path.join(pathData_all, 'mean_{}_{}_{}_{}.npy'.format(
-    partitionName, noise_type, noise_magnitude, nRotations))
-pathSTD = os.path.join(pathData_all, 'std_{}_{}_{}_{}.npy'.format(
-    partitionName, noise_type, noise_magnitude, nRotations))
+pathMean = os.path.join(pathData_all, 'mean_{}_{}_{}_{}_{}.npy'.format(
+    partitionName, noise_type, noise_magnitude, nRotations, rotation_type))
+pathSTD = os.path.join(pathData_all, 'std_{}_{}_{}_{}_{}.npy'.format(
+    partitionName, noise_type, noise_magnitude, nRotations, rotation_type))
 if not os.path.exists(pathMean) and not os.path.exists(pathSTD):
     print('Computing mean and standard deviation')
     # Instead of accumulating data to compute mean and std, we compute them
@@ -208,15 +219,25 @@ if not os.path.exists(pathMean) and not os.path.exists(pathSTD):
     existingAggregate = (0,0,0)    
     from utilities import update
     from utilities import finalize
-    for count, idx in enumerate(partition['train']): 
+    for count, idx in enumerate(partition['train']):
+        print("{}/{}".format(count, partition['train'].shape[0]))
         c_features_all = np.load(os.path.join(
             pathData_all, "feature_{}.npy".format(idx)))
         # Select features.
         c_features = c_features_all[:,idx_in_all_features]
         # Apply rotations.
-        for rotation in rotations:            
-            c_features_xyz_rot = rotateArray(
-                c_features[:,:nFeature_markers], 'y', rotation)
+        for r in range(nRotations):
+            if rotation_type == 'circleRotation':
+                rotation = rotations[r]        
+                c_features_xyz_rot = rotateArray(
+                    c_features[:,:nFeature_markers], 'y', rotation)
+            elif rotation_type == 'sphereRotation':
+                # rotation = rotations[:, r].flatten()
+                theta_x = rotations[:, r].flatten()[0,]
+                theta_z = rotations[:, r].flatten()[1,]                
+                c_features_xyz_rot, _ = rotateArraySphere3(
+                    c_features[:,:nFeature_markers], ref_vec, theta_x, theta_z)
+            # Add back height and weight.
             c_features_rot = np.concatenate(
                 (c_features_xyz_rot, c_features[:,nFeature_markers:]), axis=1)        
             # Add noise to the training data.
@@ -230,14 +251,14 @@ if not os.path.exists(pathMean) and not os.path.exists(pathSTD):
                     noise[:,:nFeature_markers] = np.random.normal(
                         0, noise_magnitude, 
                         (desired_nFrames, nFeature_markers))
-                    c_features += noise                
+                    c_features_rot += noise                
                 else:
                     raise ValueError("Only per_timestep noise type supported")                
-            if not c_features.shape[0] == 30:
+            if not c_features_rot.shape[0] == 30:
                 raise ValueError("Dimension features and responses are wrong")                
             # Compute mean and std iteratively.    
-            for c_s in range(c_features.shape[0]):
-                existingAggregate = update(existingAggregate, c_features[c_s, :])
+            for c_s in range(c_features_rot.shape[0]):
+                existingAggregate = update(existingAggregate, c_features_rot[c_s, :])
     # Compute final mean and standard deviation.
     (features_mean, features_variance, _) = finalize(existingAggregate)    
     features_std = np.sqrt(features_variance)
@@ -262,7 +283,9 @@ params = {'dim_f': (desired_nFrames,nFeature_markers+nAddFeatures),
           'features_std': features_std,
           'idx_features': idx_in_all_features,
           'idx_responses': idx_in_all_responses,
-          'rotations': rotations}
+          'rotation_type': rotation_type,
+          'rotations': rotations,
+          'ref_vec': ref_vec}
 train_generator = lstmDataGenerator(partition['train'], pathData_all, **params)
 val_generator = lstmDataGenerator(partition['val'], pathData_all, **params)
 
